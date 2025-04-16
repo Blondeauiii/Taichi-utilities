@@ -13,3 +13,6 @@ class Psystem:
 	def reinit_forces(self):
 		for k in range(self.nparticles):
 			self.forces[k] = [0.0 for _ in range(2)]
+
+# - We can define the basics of a particle system.
+# - This is an independan model regarding its dynamics and forcesystem, other objects can be added after
