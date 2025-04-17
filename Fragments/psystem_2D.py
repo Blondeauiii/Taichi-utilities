@@ -1,5 +1,5 @@
 @ti.data_oriented
-class Psystem:
+class Psystem_2D:
 
 	def __init__(self, n, m):
 
