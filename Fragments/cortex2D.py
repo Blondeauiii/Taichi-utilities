@@ -16,9 +16,8 @@ class Cortex2D:
 		self.forces = ti.Vector.field(2, dtype=ti.f32, shape=(self.nmax))
 
 		self.nseg = self.nfil * (self.lfil-1)
-
-		#self.lenreg = ti.field(dtype=ti.i32, shape=(self.nfil))		# supposed to evolve slowly
-		self.len_start = ti.field(dtype=ti.i32, shape=(self.nfil))
+	
+		self.len_start = ti.field(dtype=ti.i32, shape=(self.nfil))	# supposed to evolve slowly
 		self.len_stop = ti.field(dtype=ti.i32, shape=(self.nfil))
 		# - Lenreg is cumulative like for 10*10 we have [0, 10, 20, 30...] to have a fast access
 
@@ -33,8 +32,6 @@ class Cortex2D:
 
 		self.shift = ti.Vector.field(2, dtype=ti.f32, shape=(self.nmax)) 	# - This is the tool of copy to permite the shifting
 		self.lenshift = ti.field(dtype=ti.i32, shape=(2*self.nfil))			# - Same thing for the register
-
-		#for i in range(1,self.nfil): self.lenreg[k] = self.lenreg[k-1] + self.lfil
 	
 	@ti.kernel
 	def reinit_forces(self):
@@ -84,6 +81,8 @@ class Cortex2D:
 	def shift(self):
 
 		for k in range(self.nfil): 			# For each filament independantly
+	
+	# -------------------------------------------------------------------------------------------
 
 			shift = 0						# For the total shifting
 
@@ -93,9 +92,15 @@ class Cortex2D:
 
 			shift += self.lenshift[2*k]  	# Take account of the shift of the beginning of the filament
 
+			ti.sync()
+
+			# -----------------------------------------------
+
 			for i in range(self.len_start[k], self.len_stop[k]): 
 
 				self.shift[k+shift] = self.pos[i] 		# Pickup the filament and apply the shift
+
+			# -----------------------------------------------
 
 			self.len_start[k] = self.len_start[k] + shift - self.lenshift[2*k]		# Adaptation of the new len_start
 			self.len_stop[k] = self.len_stop[k] + shift + self.lenshift[2*k+1]		# Adaptation of the new len_stop
@@ -103,6 +108,25 @@ class Cortex2D:
 			if(lenshift[2*k]==1): self.shift[ self.len_start[k] - 1 ] = self.shift[ self.len_start[k] ] # If adding, copy the first particle
 			if(lenshift[2*k+1]==1): self.shift[ self.len_stop[k] + 1 ] = self.shift[ self.len_stop[k] ] # If adding, copy the last particle
 
+			ti.sync()
+
+		ti.sync()
+
+	# -------------------------------------------------------------------------------------------
+
 		for k in range(self.nparticles)
 
 			self.pos[k] = self.shift[k]
+
+		ti.sync()
+
+		for k in range(self.nfil):
+
+			start = self.len_start[k] - k # Taking account of the number of segment, not the number of particles
+
+			for i in range(self.len_start[k], self.len_stop[k]-1):
+
+				self.link0[ self.len_start[k]-k ] = i
+				self.link1[ self.len_start[k]-k ] = i + 1
+
+		ti.sync()
