@@ -189,10 +189,10 @@ class Cortex2D:
 		# -------------------------------------------------------------------------------------------
 
 			shift = 0									# For the total shifting
-			fshift = 0 		
-										# For the total filament shifting
-			ti.loop_config(serialize=True)
-			for i in range(2*k-1):          				# Do the sum of the shifting
+			fshift = 0 									# For the total filament shifting
+										
+			#ti.loop_config(serialize=True)
+			for i in range(2*k):          				# Do the sum of the shifting of the previous fils
 
 				shift += self.lenshift[i] 
 
@@ -206,14 +206,14 @@ class Cortex2D:
 			self.len_start[k] += shift                        	# Start for the writting
 			self.len_stop[k] += shift + self.lenshift[2*k+1]	# Stop for the writting
 
-			# Take account of the shift of the beginning of the filament
+			print(shift, self.lenshift[2*k+1])
 
-			#if self.lenshift[2*k] == 1 : shift += self.lenshift[2*k] # add one to the writting coordinate
+			# Take account of the shift of the beginning of the filament
 
 			if self.lenshift[2*k] == -1 : rstart+=1  	# Reduce the range of reading
 			if self.lenshift[2*k+1] == -1 : rstop-=1 	# Reduce the range of reading
 
-			shift += self.lenshift[2*k]  	
+			#shift += self.lenshift[2*k]  	
 
 			if rstop - rstart < 1: new_nfil -= 1
 
@@ -221,7 +221,7 @@ class Cortex2D:
 
 			for i in range(rstart, rstop): 
 
-				self.shift[i+shift] = self.pos[i] 		# Pickup the filament and apply the shift
+				self.shift[i+shift+self.lenshift[2*k]] = self.pos[i] 		# Pickup the filament and apply the shift
 
 			ti.sync()
 			
@@ -232,11 +232,11 @@ class Cortex2D:
 				self.len_stop[k + fshift] = self.len_stop[k] + shift + self.lenshift[2*k+1]		# Adaptation of the new len_stop
 
 			if(self.lenshift[2*k]==1):  														# If adding, copy the first particle
-				self.shift[ self.len_start[k] - 1 ] = self.shift[self.len_start[k]]
-				self.shift[ self.len_start[k] - 1 ] += 0.2 * ( self.shift[ self.len_start[k]+1] - self.shift[ self.len_start[k]] )
+				self.shift[ self.len_start[k] ] = 100#self.shift[ self.len_start[k]+1]
+				#self.shift[ self.len_start[k] ] += 0.2 * ( self.shift[ self.len_start[k]+1] - self.shift[ self.len_start[k]]+2 )
 			if(self.lenshift[2*k+1]==1): 														# If adding, copy the last particle
-				self.shift[ self.len_stop[k] + 1 ] = self.shift[ self.len_stop[k]] 
-				self.shift[ self.len_stop[k] + 1 ] += 0.2 * ( self.shift[ self.len_stop[k]] - self.shift[ self.len_stop[k]-1] )
+				self.shift[ self.len_stop[k] ] = 100#self.shift[ self.len_stop[k]-1] 
+				#self.shift[ self.len_stop[k] ] += 0.2 * ( self.shift[ self.len_stop[k]-1 ] - self.shift[ self.len_stop[k]-2 ] )
 
 		# -------------------------------------------------------------------------------------------
 
