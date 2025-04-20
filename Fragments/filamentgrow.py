@@ -1,7 +1,7 @@
-# - Here the mid pre-allocated version using shift
+import taichi as ti
 
 @ti.data_oriented
-class Cortex2D:
+class Cortex2D_test:
 
 	def __init__(self, nfil, lfil, nmax, l0, m):
 
@@ -100,7 +100,7 @@ class Cortex2D:
 		for k in range(self.nfil[None]):
 			
 			self.len_start.append( k * self.lfil )
-			self.len_stop.append( (k+1) * self.lfil )
+			self.len_stop.append( (k+1) * self.lfil -1 )
 			self.filshift.append( 0 )
 
 		for k in range(2*self.nfil[None]):
@@ -110,26 +110,15 @@ class Cortex2D:
 	@ti.kernel
 	def rd_polym(self, t: int):
 
-		ti.loop_config(serialize=True)
 		for k in range(self.nfil[None]):
 
 			if ti.random() < self.prate: 	# Polymerisation at the starting point of the filament
-				
-				print("add start on fil:", end=" ")
-				print(k,end="")
-				print(" at t = ",end="")
-				print(t)
-				
+
 				self.lenshift[2*k] += 1
 				self.nparticles[None] += 1
 				self.nseg[None] += 1
 
 			if ti.random() < self.prate: 	# Polymerisation at the stopping point of the filament
-				
-				print("add end on fil:", end=" ")
-				print(k,end="")
-				print(" at t = ",end="")
-				print(t)
 
 				self.lenshift[2*k+1] += 1
 				self.nparticles[None] += 1
@@ -137,21 +126,11 @@ class Cortex2D:
 
 			if ti.random() < self.unprate: 	# Depolymerisation at the starting point of the filament
 
-				print("rem start on fil:", end=" ")
-				print(k,end="")
-				print(" at t = ",end="")
-				print(t)
-
 				self.lenshift[2*k] -= 1
 				self.nparticles[None] -= 1
 				self.nseg[None] -= 1
 
 			if ti.random() < self.unprate: 	# Depolymerisation at the stopping point of the filament
-
-				print("rem end on fil:", end=" ")
-				print(k,end="")
-				print(" at t = ",end="")
-				print(t)
 
 				self.lenshift[2*k+1] -= 1
 				self.nparticles[None] -= 1
@@ -171,8 +150,6 @@ class Cortex2D:
 					self.nparticles[None] += 1
 					self.nseg[None] -= 1
 
-		print("newstep")
-
 		if ti.random() < self.create: 		# Polymerisation of a new filament
 	
 			self.nfil[None] += 1
@@ -183,15 +160,13 @@ class Cortex2D:
 
 		new_nfil = self.nfil[None]
 
-
 		for k in range(self.nfil[None]): 			# For each filament independantly
 	
 		# -------------------------------------------------------------------------------------------
 
 			shift = 0									# For the total shifting
 			fshift = 0 									# For the total filament shifting
-										
-			#ti.loop_config(serialize=True)
+
 			for i in range(2*k):          				# Do the sum of the shifting of the previous fils
 
 				shift += self.lenshift[i] 
@@ -200,20 +175,16 @@ class Cortex2D:
 
 				fshift += self.filshift[i]
 
-			rstart = self.len_start[k]      			# Start for reading
-			rstop = self.len_stop[k]					# Stop for reading
+			rstart = self.len_start[k]      					# Start for reading
+			rstop = self.len_stop[k] + 1						# Stop for reading
 
-			self.len_start[k] += shift                        	# Start for the writting
-			self.len_stop[k] += shift + self.lenshift[2*k+1]	# Stop for the writting
-
-			print(shift, self.lenshift[2*k+1])
+			self.len_start[k] += shift                        							# Start for the writting
+			self.len_stop[k] += shift + self.lenshift[2*k] + self.lenshift[2*k+1] 		# Stop for the writting
 
 			# Take account of the shift of the beginning of the filament
 
-			if self.lenshift[2*k] == -1 : rstart+=1  	# Reduce the range of reading
-			if self.lenshift[2*k+1] == -1 : rstop-=1 	# Reduce the range of reading
-
-			#shift += self.lenshift[2*k]  	
+			if self.lenshift[2*k] == -1 : rstart+=1  			# Reduce the range of reading
+			if self.lenshift[2*k+1] == -1 : rstop-=1 			# Reduce the range of reading
 
 			if rstop - rstart < 1: new_nfil -= 1
 
@@ -221,143 +192,41 @@ class Cortex2D:
 
 			for i in range(rstart, rstop): 
 
-				self.shift[i+shift+self.lenshift[2*k]] = self.pos[i] 		# Pickup the filament and apply the shift
+				self.shift[ i + shift + self.lenshift[2*k] ] = self.pos[i] 		# Pickup the filament and apply the shift
 
 			ti.sync()
-			
+
 			# -----------------------------------------------
-			if self.filshift[k] <= 0:
+			if self.filshift[k] < 0:
 
 				self.len_start[k + fshift] = self.len_start[k] + shift - self.lenshift[2*k]		# Adaptation of the new len_start
 				self.len_stop[k + fshift] = self.len_stop[k] + shift + self.lenshift[2*k+1]		# Adaptation of the new len_stop
 
 			if(self.lenshift[2*k]==1):  														# If adding, copy the first particle
-				self.shift[ self.len_start[k] ] = 100#self.shift[ self.len_start[k]+1]
-				#self.shift[ self.len_start[k] ] += 0.2 * ( self.shift[ self.len_start[k]+1] - self.shift[ self.len_start[k]]+2 )
+				self.shift[ self.len_start[k] ] = self.shift[ self.len_start[k]+1  ]
+				self.shift[ self.len_start[k] ] += 1 * ( self.shift[ self.len_start[k]+1 ] - self.shift[ self.len_start[k]+2 ] )
 			if(self.lenshift[2*k+1]==1): 														# If adding, copy the last particle
-				self.shift[ self.len_stop[k] ] = 100#self.shift[ self.len_stop[k]-1] 
-				#self.shift[ self.len_stop[k] ] += 0.2 * ( self.shift[ self.len_stop[k]-1 ] - self.shift[ self.len_stop[k]-2 ] )
+				self.shift[ self.len_stop[k] ] = self.shift[ self.len_stop[k]-1  ] 
+				self.shift[ self.len_stop[k] ] += 1 * ( self.shift[ self.len_stop[k]-1 ] - self.shift[ self.len_stop[k]-2 ] )
 
 		# -------------------------------------------------------------------------------------------
 
-		for k in range(self.nparticles[None]):
+		for k in range(self.nmax):
 
-			self.pos[k] = self.shift[k]
-
+			if k < self.nparticles[None]:
+				self.pos[k] = self.shift[k]
+			else:
+				self.pos[k] = 0
+		
 		for k in range(self.nfil[None]):
 
-			start = self.len_start[k] - k # Taking account of the number of segment, not the number of particles
+			start = self.len_start[k] #- k # Taking account of the number of segment, not the number of particles
 
-			for i in range(start, self.len_stop[k]-1):
+			for i in range(start, self.len_stop[k]):
 
-				self.link0[ start-k ] = i
-				self.link1[ start-k ] = i + 1
+				self.link0[ i-k ] = i
+				self.link1[ i-k ] = i + 1
 
-		self.nfil[None] = new_nfil
-
-
-import matplotlib.pyplot as plt
-
-# Assurez-vous que la classe Cortex2D est définie et importée correctement
-# from your_module import Cortex2D
-
-nstep = 100
-
-ti.init(arch=ti.cuda, kernel_profiler=True, random_seed=int(time.time()))
-
-def fplot1(nstep=nstep):
-
-	# Créer une figure et un axe
-	fig, ax = plt.subplots(1, 2, figsize=(16, 6))
-
-	# Initialisation de Cortex2D
-	cortex = Cortex2D(nfil=12, lfil=10, nmax=20000, m=1, l0=1)
-
-	nfil = cortex.nfil[None]
-	cortex.prate = 0.3
-	cortex.unprate = 0.3
-
-	xrange = np.array([k for k in range(cortex.nfil[None])])
-
-	start = cortex.len_start.to_numpy()
-	stop = cortex.len_stop.to_numpy()
-
-	startlist = np.zeros((nfil, nstep), dtype=int)
-	stoplist = np.zeros((nfil, nstep), dtype=int)
-
-	lentlist = np.zeros((nfil, nstep), dtype=int)
-
-	for k in range(nstep):
-		
-		cortex.grow()
-		start = cortex.len_start.to_numpy()
-		stop = cortex.len_stop.to_numpy()
-
-		startlist[:, k] = start[:nfil]
-		stoplist[:, k] = stop[:nfil]
-
-		lenlist = stoplist[:, k]-startlist[:, k]
-		ax[0].plot(xrange, lenlist,color=( 0 , 1/(k/nstep+1) , 0 ))
-
-	# Affichage des résultats
-
-	ax[0].set_title('Start Lengths')
-	ax[0].set_xlabel('Filament Index')
-	ax[0].set_ylabel('Length')
-
-	ax[1].matshow(stoplist, cmap='viridis')
-	ax[1].set_title('Stop Lengths')
-	ax[1].set_xlabel('Step')
-	ax[1].set_ylabel('Filament Index')
-
-	plt.show()
-
-#fplot1()
-
-def fplot2(nstep=nstep):
-
-	# Créer une figure et un axe
-	fig, ax = plt.subplots(figsize=(10, 10))
-
-	# Initialisation de Cortex2D
-	cortex = Cortex2D(nfil=4, lfil=10, nmax=60, m=1, l0=1)
-	cortex.rdplace(spacedim=10, cx=25, cy=25)
-
-	nfil = cortex.nfil[None]
-	nmax = cortex.nmax
-
-	cortex.prate = 0.0
-	cortex.unprate = 0.1
-
-	plist = np.zeros((nstep, nmax), dtype=float)
-
-	lentlist = np.zeros((nfil, nstep), dtype=int)
-
-	t = 0
-
-	for k in range(0,nstep):
-
-		t+=1
-
-		#print("time=",str(k), end=" ")
-		#print(" nseg=", str(cortex.nseg[None]), end=" ")
-		#print(" nfil=", str(cortex.nfil[None]), end=" ") 
-		#print(" nparticles=", str(cortex.nparticles[None]), end="\n")
-
-		pos = cortex.pos.to_numpy()
-
-		plist[k] = pos[:,0]
-
-		cortex.grow(t)
 		ti.sync()
 
-	# Affichage des résultats
-	im = ax.imshow(plist)
-	fig.colorbar(im)
-	ax.set_title('Stop Lengths')
-	ax.set_xlabel('Step')
-	ax.set_ylabel('Filament Index')
-
-	plt.show()
-
-fplot2(60)
+		self.nfil[None] = new_nfil
